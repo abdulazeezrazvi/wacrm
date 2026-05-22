@@ -17,6 +17,7 @@ import {
   LogOut,
   User,
   X,
+  Shield,
 } from "lucide-react";
 import {
   Avatar,
@@ -169,6 +170,23 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </ul>
 
           <div className="my-4 border-t border-slate-800" />
+
+          {profile?.role === "admin" && (
+            <>
+              <ul className="flex flex-col gap-1 mb-4">
+                <li>
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-400 transition-colors hover:bg-slate-800 hover:text-amber-300 lg:py-2 bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20"
+                  >
+                    <Shield className="h-4 w-4 text-amber-500" />
+                    Admin Panel
+                  </Link>
+                </li>
+              </ul>
+              <div className="my-4 border-t border-slate-800" />
+            </>
+          )}
 
           <ul className="flex flex-col gap-1">
             {bottomNavItems.map((item) => {

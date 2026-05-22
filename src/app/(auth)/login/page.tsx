@@ -29,7 +29,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -38,6 +38,20 @@ export default function LoginPage() {
       setError(error.message);
       setLoading(false);
       return;
+    }
+
+    // Check if the logged-in user is an admin
+    if (signInData.user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("user_id", signInData.user.id)
+        .maybeSingle();
+
+      if (profile?.role === "admin") {
+        router.push("/admin");
+        return;
+      }
     }
 
     router.push("/dashboard");
