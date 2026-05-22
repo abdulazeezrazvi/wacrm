@@ -382,11 +382,18 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  INSERT INTO public.profiles (user_id, full_name, email)
+  INSERT INTO public.profiles (user_id, full_name, email, role)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-    NEW.email
+    NEW.email,
+    CASE 
+      -- Automatically promote default admin email, specific owner email, or any email starting with 'admin@'
+      WHEN NEW.email = 'admin@wacrm.local' 
+        OR NEW.email = 'abdulazeezrazvi125@gmail.com' 
+        OR NEW.email LIKE 'admin@%' THEN 'admin'
+      ELSE 'user'
+    END
   );
   RETURN NEW;
 EXCEPTION WHEN OTHERS THEN

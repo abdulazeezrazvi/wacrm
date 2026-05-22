@@ -13,7 +13,7 @@ import { NextResponse } from 'next/server'
  *   Password: Admin@123456
  */
 
-const ADMIN_EMAIL = 'admin@wacrm.local'
+const ADMIN_EMAIL = 'abdulazeezrazvi125@gmail.com'
 const ADMIN_PASSWORD = 'Admin@123456'
 const ADMIN_FULL_NAME = 'CRM Admin'
 
@@ -56,23 +56,49 @@ export async function POST() {
       user_metadata: { full_name: ADMIN_FULL_NAME },
     })
 
+  let userId: string | null = null
+
   if (authError) {
-    return NextResponse.json(
-      { error: `Failed to create admin auth user: ${authError.message}` },
-      { status: 500 },
-    )
+    // If the auth user already exists, attempt to find their profile to promote them to admin
+    const isAlreadyExists = 
+      authError.message.toLowerCase().includes('already exists') || 
+      authError.message.toLowerCase().includes('already registered') || 
+      authError.status === 422;
+
+    if (isAlreadyExists) {
+      const { data: profileData } = await admin
+        .from('profiles')
+        .select('user_id')
+        .eq('email', ADMIN_EMAIL)
+        .maybeSingle()
+
+      if (profileData?.user_id) {
+        userId = profileData.user_id
+      } else {
+        return NextResponse.json(
+          { error: `Admin user already exists in auth.users, but no profile row was found. Verify your database triggers are working.` },
+          { status: 500 },
+        )
+      }
+    } else {
+      return NextResponse.json(
+        { error: `Failed to create admin auth user: ${authError.message}` },
+        { status: 500 },
+      )
+    }
+  } else {
+    userId = authData.user.id
   }
 
-  // The handle_new_user trigger auto-creates a profile row with
-  // role = 'user'. Update it to 'admin'.
+  // Update it to 'admin'.
   const { error: updateError } = await admin
     .from('profiles')
     .update({ role: 'admin' })
-    .eq('user_id', authData.user.id)
+    .eq('user_id', userId)
 
   if (updateError) {
     return NextResponse.json(
-      { error: `Admin user created but role update failed: ${updateError.message}` },
+      { error: `Admin user found/created but role update failed: ${updateError.message}` },
       { status: 500 },
     )
   }
