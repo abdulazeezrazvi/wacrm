@@ -1,21 +1,4 @@
-import type { NextConfig } from "next";
-
-/**
- * Baseline security headers applied to every response.
- *
- * CSP ships as `Content-Security-Policy-Report-Only` so the browser
- * surfaces violations in the console without blocking anything — once
- * we have confidence nothing legit trips it (two deploys, a pass on
- * every route), flip the key to `Content-Security-Policy` to enforce.
- *
- * The rest of the headers are straight blocks, safe to enforce today:
- *   - HSTS: only meaningful on HTTPS (no-op on http://localhost).
- *   - X-Content-Type-Options / X-Frame-Options / Referrer-Policy:
- *     baseline OWASP hardening, no behavioural cost.
- *   - Permissions-Policy: we don't use camera / microphone / etc, so
- *     deny them. A supply-chain compromise or a forgotten plugin
- *     can't silently opt back in.
- */
+/** @type {import('next').NextConfig} */
 const SECURITY_HEADERS = [
   {
     key: "Strict-Transport-Security",
@@ -51,9 +34,9 @@ const SECURITY_HEADERS = [
       "form-action 'self'",
     ].join("; "),
   },
-] as const;
+];
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   /**
    * Cache-Control policy.
    *
