@@ -36,11 +36,12 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-    }
-    if (!loading && profile && profile.role !== "admin") {
-      router.push("/dashboard");
+    if (!loading) {
+      if (!user) {
+        router.push("/login");
+      } else if (!profile || profile.role !== "admin") {
+        router.push("/dashboard");
+      }
     }
   }, [user, profile, loading, router]);
 

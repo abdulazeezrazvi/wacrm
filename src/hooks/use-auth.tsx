@@ -95,9 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentUser);
 
         if (currentUser) {
-          // Don't block loading on profile fetch — let the UI render
-          // with the user info we already have, profile enriches async.
-          fetchProfile(currentUser.id);
+          // Block loading on profile fetch so we have role/profile data
+          // before any protected pages render or redirect.
+          await fetchProfile(currentUser.id);
         }
       } catch (err) {
         console.error("[AuthProvider] init threw:", err);
@@ -111,13 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
       if (currentUser) {
-        fetchProfile(currentUser.id);
+        setLoading(true);
+        await fetchProfile(currentUser.id);
       } else {
         setProfile(null);
       }
