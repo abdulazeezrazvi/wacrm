@@ -26,33 +26,48 @@ import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
 type RangeDays = 7 | 30 | 90
 
+// Simple module-level client-side cache to persist dashboard stats
+// across page/tab navigations so they load instantly without skeletons.
+let cachedStats: {
+  metrics: MetricsBundle
+  series: Record<RangeDays, ConversationsSeriesPoint[]>
+  pipeline: PipelineDonutData
+  responseTime: ResponseTimeSummary
+  activity: ActivityItem[]
+} | null = null
+
 export default function DashboardPage() {
-  const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
-  const [metricsLoading, setMetricsLoading] = useState(true)
+  const [metrics, setMetrics] = useState<MetricsBundle | null>(cachedStats?.metrics || null)
+  const [metricsLoading, setMetricsLoading] = useState(!cachedStats)
 
   const [range, setRange] = useState<RangeDays>(30)
-  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>({
-    7: null,
-    30: null,
-    90: null,
-  })
-  const [seriesLoading, setSeriesLoading] = useState(true)
+  const [series, setSeries] = useState<Record<RangeDays, ConversationsSeriesPoint[] | null>>(
+    cachedStats?.series || {
+      7: null,
+      30: null,
+      90: null,
+    }
+  )
+  const [seriesLoading, setSeriesLoading] = useState(!cachedStats)
 
-  const [pipeline, setPipeline] = useState<PipelineDonutData | null>(null)
-  const [pipelineLoading, setPipelineLoading] = useState(true)
+  const [pipeline, setPipeline] = useState<PipelineDonutData | null>(cachedStats?.pipeline || null)
+  const [pipelineLoading, setPipelineLoading] = useState(!cachedStats)
 
-  const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(null)
-  const [responseTimeLoading, setResponseTimeLoading] = useState(true)
+  const [responseTime, setResponseTime] = useState<ResponseTimeSummary | null>(cachedStats?.responseTime || null)
+  const [responseTimeLoading, setResponseTimeLoading] = useState(!cachedStats)
 
-  const [activity, setActivity] = useState<ActivityItem[] | null>(null)
-  const [activityLoading, setActivityLoading] = useState(true)
+  const [activity, setActivity] = useState<ActivityItem[] | null>(cachedStats?.activity || null)
+  const [activityLoading, setActivityLoading] = useState(!cachedStats)
 
   const loadAll = useCallback(() => {
-    setMetricsLoading(true)
-    setSeriesLoading(true)
-    setPipelineLoading(true)
-    setResponseTimeLoading(true)
-    setActivityLoading(true)
+    // Only show loading skeletons if we don't have cached data yet.
+    if (!cachedStats) {
+      setMetricsLoading(true)
+      setSeriesLoading(true)
+      setPipelineLoading(true)
+      setResponseTimeLoading(true)
+      setActivityLoading(true)
+    }
 
     fetch('/api/dashboard/stats')
       .then((res) => {
@@ -60,6 +75,7 @@ export default function DashboardPage() {
         return res.json()
       })
       .then((data) => {
+        cachedStats = data
         setMetrics(data.metrics)
         setSeries(data.series)
         setPipeline(data.pipeline)
