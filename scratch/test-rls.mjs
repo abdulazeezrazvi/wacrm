@@ -15,7 +15,6 @@ async function main() {
   const email = "abdulazeezrazvi125@gmail.com";
 
   console.log(`Generating magic link for user: ${email}`);
-  
   const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
     type: 'magiclink',
     email: email
@@ -49,29 +48,20 @@ async function main() {
     const userToken = sessionData.session?.access_token;
     console.log("JWT token obtained.");
 
-    console.log("Querying profiles table as the authenticated user...");
-    const res = await fetch(`${supabaseUrl}/rest/v1/profiles?select=*`, {
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${userToken}`
-      }
-    });
-
-    console.log("Profiles fetch status:", res.status);
-    const body = await res.json();
-    console.log("Profiles fetch body:", body);
-
-    console.log("Querying conversations table as the authenticated user...");
-    const resConv = await fetch(`${supabaseUrl}/rest/v1/conversations?select=*&limit=1`, {
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${userToken}`
-      }
-    });
-
-    console.log("Conversations fetch status:", resConv.status);
-    const bodyConv = await resConv.json();
-    console.log("Conversations fetch body:", bodyConv);
+    const tables = ["profiles", "contacts", "conversations", "deals", "broadcasts", "automations"];
+    for (const t of tables) {
+      console.log(`Querying ${t}...`);
+      const res = await fetch(`${supabaseUrl}/rest/v1/${t}?select=id`, {
+        method: 'HEAD',
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${userToken}`,
+          Prefer: "count=exact"
+        }
+      });
+      console.log(`Table ${t} status:`, res.status);
+      console.log(`Table ${t} headers:`, Object.fromEntries(res.headers.entries()));
+    }
   }
 }
 

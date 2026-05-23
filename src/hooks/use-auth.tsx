@@ -73,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = createClient();
     let mounted = true;
+    let initialized = false;
 
     const safetyTimer = setTimeout(() => {
       if (mounted) {
@@ -102,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         console.error("[AuthProvider] init threw:", err);
       } finally {
+        initialized = true;
         if (mounted) setLoading(false);
         clearTimeout(safetyTimer);
       }
@@ -113,6 +115,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
+
+      // Ignore auth state changes during initial session loading to prevent race conditions.
+      if (!initialized) return;
+
       const currentUser = session?.user ?? null;
       setUser(currentUser);
 
