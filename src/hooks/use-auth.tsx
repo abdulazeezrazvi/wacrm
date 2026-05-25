@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastUserIdRef = useRef<string | null>(null);
 
   // Shared across init, auth-state-change listener, and the exposed
   // refreshProfile() callback. Reads the current session's user id and
@@ -94,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         const currentUser = session?.user ?? null;
         setUser(currentUser);
+        lastUserIdRef.current = currentUser?.id ?? null;
 
         if (currentUser) {
           // Block loading on profile fetch so we have role/profile data
@@ -120,6 +123,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!initialized) return;
 
       const currentUser = session?.user ?? null;
+
+      // If the logged-in user hasn't changed (e.g. background token refresh / window focus),
+      // keep the session metadata fresh but do NOT trigger loading state or profile refetch.
+      if (currentUser?.id === lastUserIdRef.current) {
+        setUser(currentUser);
+        return;
+      }
+
+      // User changed (e.g. login, logout, switch account)
+      lastUserIdRef.current = currentUser?.id ?? null;
       setUser(currentUser);
 
       if (currentUser) {

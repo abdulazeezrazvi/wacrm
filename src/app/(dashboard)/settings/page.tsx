@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, MessageSquare, Tag, User } from 'lucide-react';
+import { Settings, MessageSquare, Tag, User, GitBranch } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
@@ -9,8 +9,9 @@ import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
+import { PipelinesConfig } from '@/components/settings/pipelines-config';
 
-const TAB_VALUES = ['profile', 'whatsapp', 'templates', 'tags'] as const;
+const TAB_VALUES = ['profile', 'whatsapp', 'templates', 'tags', 'pipelines'] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
 function isTabValue(v: string | null): v is TabValue {
@@ -74,6 +75,13 @@ export default function SettingsPage() {
             <Tag className="size-4" />
             Tags
           </TabsTrigger>
+          <TabsTrigger
+            value="pipelines"
+            className="data-active:bg-slate-800 data-active:text-violet-400 text-slate-400"
+          >
+            <GitBranch className="size-4" />
+            Pipelines
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -92,6 +100,10 @@ export default function SettingsPage() {
 
         <TabsContent value="tags">
           <TagManager />
+        </TabsContent>
+
+        <TabsContent value="pipelines">
+          <PipelinesConfig />
         </TabsContent>
       </Tabs>
     </div>
