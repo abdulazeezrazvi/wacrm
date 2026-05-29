@@ -33,6 +33,7 @@ export default function SaaSConfigPage() {
     async function loadSettings() {
       setLoading(true);
       try {
+        // Read uses public SELECT policy (works fine), keep using client
         const { data, error } = await supabase
           .from('saas_settings')
           .select('*')
@@ -69,36 +70,31 @@ export default function SaaSConfigPage() {
     setSaving(true);
 
     const payload = {
+      id: settingsId,
       starter_price: Number(starterPrice) || 0,
       pro_price: Number(proPrice) || 0,
       free_code: freeCode.trim() || null,
       discount_code: discountCode.trim() || null,
       discount_percentage: Number(discountPercentage) || 0,
-      updated_at: new Date().toISOString(),
     };
 
     try {
-      if (settingsId) {
-        const { data, error } = await supabase
-          .from('saas_settings')
-          .update(payload)
-          .eq('id', settingsId)
-          .select();
+      const res = await fetch('/api/admin/config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        if (error) throw error;
-        if (!data || data.length === 0) {
-          throw new Error('No rows updated. Make sure you are logged in as an administrator.');
-        }
-      } else {
-        const { data, error } = await supabase
-          .from('saas_settings')
-          .insert(payload)
-          .select()
-          .single();
+      const json = await res.json();
 
-        if (error) throw error;
-        if (data) setSettingsId(data.id);
+      if (!res.ok) {
+        throw new Error(json.error || `Server error ${res.status}`);
       }
+
+      if (json.settings?.id) {
+        setSettingsId(json.settings.id);
+      }
+
       toast.success('SaaS settings updated successfully!');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
