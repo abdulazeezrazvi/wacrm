@@ -74,12 +74,24 @@ export async function PATCH(request: Request) {
 
   const db = supabaseAdmin()
 
-  if (body.id) {
+  // Always check if there's an existing settings row first (singleton pattern)
+  const { data: existingRows, error: fetchError } = await db
+    .from('saas_settings')
+    .select('id')
+    .limit(1)
+
+  if (fetchError) {
+    return NextResponse.json({ error: fetchError.message }, { status: 500 })
+  }
+
+  const existing = existingRows?.[0]
+
+  if (existing) {
     // Update existing row
     const { data, error } = await db
       .from('saas_settings')
       .update(payload)
-      .eq('id', body.id)
+      .eq('id', existing.id)
       .select()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

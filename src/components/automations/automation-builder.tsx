@@ -962,9 +962,33 @@ function StepEditor({
               className="bg-slate-800 text-white"
             />
           </FieldBlock>
+          <FieldBlock label="AI Model">
+            <select
+              value={(cfg.ai_model as string) ?? "gemini-2.0-flash"}
+              onChange={(e) => set({ ai_model: e.target.value })}
+              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white"
+            >
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+              <option value="gemini-2.0-pro-exp">Gemini 2.0 Pro Experimental</option>
+            </select>
+          </FieldBlock>
+          <FieldBlock label="Gemini API Key (optional)">
+            <Input
+              type="password"
+              value={(cfg.gemini_api_key as string) ?? ""}
+              onChange={(e) => set({ gemini_api_key: e.target.value })}
+              placeholder="AI API Key (starts with AIzaSy...)"
+              className="bg-slate-800 text-white"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Provide a custom Gemini API key for this step. If left blank, it falls back to the server environment variable.
+            </p>
+          </FieldBlock>
           <div className="mt-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
             <p className="text-[11px] text-emerald-400">
-              <span className="font-semibold">🤖 AI Chatbot</span> — When triggered, Gemini AI will read the last customer message and generate a reply using your persona and knowledge base, then send it via WhatsApp automatically.
+              <span className="font-semibold">🤖 AI Chatbot</span> — When triggered, the selected Gemini model will read the last customer message and generate a reply using your persona and knowledge base, then send it via WhatsApp automatically.
             </p>
           </div>
         </>

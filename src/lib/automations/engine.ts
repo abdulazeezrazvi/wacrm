@@ -476,11 +476,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         : ''
       const fullSystemPrompt = `${cfg.system_prompt}${knowledgeSection}`
 
-      const geminiApiKey = process.env.GEMINI_API_KEY
-      if (!geminiApiKey) throw new Error('GEMINI_API_KEY not configured in environment variables')
+      const geminiApiKey = cfg.gemini_api_key || process.env.GEMINI_API_KEY
+      if (!geminiApiKey) throw new Error('Gemini API key not configured in step settings or environment')
+
+      const modelName = cfg.ai_model || 'gemini-2.0-flash'
 
       const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiApiKey}`,
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },

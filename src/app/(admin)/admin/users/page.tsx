@@ -20,18 +20,17 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
 
   const loadUsers = async () => {
-    const db = createClient();
-    const { data, error } = await db
-      .from("profiles")
-      .select("id, user_id, full_name, email, role, avatar_url, created_at")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("[admin/users] load failed:", error);
-      toast.error("Failed to load users");
+    try {
+      const res = await fetch("/api/admin/users");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load users");
+      setUsers(json.users ?? []);
+    } catch (err) {
+      console.error("[admin/users] load failed:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to load users");
+    } finally {
+      setLoading(false);
     }
-    setUsers(data ?? []);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -40,21 +39,22 @@ export default function AdminUsersPage() {
 
   const toggleRole = async (profile: UserProfile) => {
     const newRole = profile.role === "admin" ? "user" : "admin";
-    const db = createClient();
-    const { error } = await db
-      .from("profiles")
-      .update({ role: newRole })
-      .eq("id", profile.id);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: profile.id, role: newRole }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to update role");
 
-    if (error) {
-      toast.error("Failed to update role");
-      return;
+      toast.success(`${profile.full_name || profile.email} is now ${newRole}`);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === profile.id ? { ...u, role: newRole } : u)),
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update role");
     }
-
-    toast.success(`${profile.full_name || profile.email} is now ${newRole}`);
-    setUsers((prev) =>
-      prev.map((u) => (u.id === profile.id ? { ...u, role: newRole } : u)),
-    );
   };
 
   const deleteUser = async (profile: UserProfile) => {
@@ -66,18 +66,18 @@ export default function AdminUsersPage() {
       return;
     }
 
-    // Delete from profiles — the CASCADE on user_id will clean up
-    // contacts, conversations, etc.
-    const db = createClient();
-    const { error } = await db.from("profiles").delete().eq("id", profile.id);
+    try {
+      const res = await fetch(`/api/admin/users?userId=${profile.user_id}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to delete user");
 
-    if (error) {
-      toast.error("Failed to delete user");
-      return;
+      toast.success("User deleted successfully!");
+      setUsers((prev) => prev.filter((u) => u.id !== profile.id));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete user");
     }
-
-    toast.success("User deleted");
-    setUsers((prev) => prev.filter((u) => u.id !== profile.id));
   };
 
   return (

@@ -336,6 +336,10 @@ export interface AiChatbotStepConfig {
   knowledge_base?: string;
   /** Max tokens to generate (default 300) */
   max_tokens?: number;
+  /** Custom API Key for Gemini */
+  gemini_api_key?: string;
+  /** Custom Model name for Gemini */
+  ai_model?: string;
 }
 
 export type AutomationStepConfig =
