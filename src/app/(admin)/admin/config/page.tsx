@@ -79,12 +79,16 @@ export default function SaaSConfigPage() {
 
     try {
       if (settingsId) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('saas_settings')
           .update(payload)
-          .eq('id', settingsId);
+          .eq('id', settingsId)
+          .select();
 
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error('No rows updated. Make sure you are logged in as an administrator.');
+        }
       } else {
         const { data, error } = await supabase
           .from('saas_settings')

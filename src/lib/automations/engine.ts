@@ -52,6 +52,24 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
+
+    // 1. Fire global n8n webhook if configured
+    try {
+      const { data: profile } = await db
+        .from('profiles')
+        .select('*')
+        .eq('user_id', input.userId)
+        .single()
+
+      if (profile && (profile as any).n8n_enabled && (profile as any).n8n_webhook_url) {
+        triggerN8nWebhook((profile as any).n8n_webhook_url, input).catch((err) => {
+          console.error('[n8n-integration] trigger failed:', err)
+        })
+      }
+    } catch (n8nErr) {
+      console.error('[n8n-integration] settings check failed:', n8nErr)
+    }
+
     const { data: automations, error } = await db
       .from('automations')
       .select('*')
@@ -643,4 +661,39 @@ async function markPending(id: string, status: 'done' | 'failed') {
     .from('automation_pending_executions')
     .update({ status })
     .eq('id', id)
+}
+
+async function triggerN8nWebhook(webhookUrl: string, input: DispatchInput) {
+  const db = supabaseAdmin()
+  let contact = null
+
+  if (input.contactId) {
+    const { data } = await db
+      .from('contacts')
+      .select('*')
+      .eq('id', input.contactId)
+      .single()
+    contact = data
+  }
+
+  const payload = {
+    event: input.triggerType,
+    user_id: input.userId,
+    contact_id: input.contactId ?? null,
+    contact: contact,
+    context: input.context ?? {},
+    timestamp: new Date().toISOString(),
+  }
+
+  const res = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    throw new Error(`n8n webhook returned status ${res.status}`)
+  }
 }
