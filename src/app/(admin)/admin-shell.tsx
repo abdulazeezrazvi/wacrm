@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   Menu,
   X,
+  CreditCard,
 } from "lucide-react";
 
 const adminNavItems = [
@@ -27,6 +28,7 @@ const adminNavItems = [
   { href: "/admin/pipelines", label: "All Pipelines", icon: GitBranch },
   { href: "/admin/broadcasts", label: "All Broadcasts", icon: Radio },
   { href: "/admin/automations", label: "All Automations", icon: Zap },
+  { href: "/admin/config", label: "SaaS Config", icon: CreditCard },
 ];
 
 function AdminShellInner({ children }: { children: React.ReactNode }) {

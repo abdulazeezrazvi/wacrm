@@ -13,7 +13,7 @@ interface DealCardProps {
 function formatCurrency(value: number, currency?: string) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currency || "USD",
+    currency: currency || "INR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(value || 0));

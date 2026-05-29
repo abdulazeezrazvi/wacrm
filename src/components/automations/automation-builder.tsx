@@ -24,6 +24,7 @@ import {
   Loader2,
   ArrowDown,
   ArrowUp,
+  Bot,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -88,11 +89,13 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   condition: { label: "Condition (If/Else)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Send Webhook", icon: Webhook, border: "border-l-violet-500" },
   close_conversation: { label: "Close Conversation", icon: CircleSlash, border: "border-l-violet-500" },
+  ai_chatbot: { label: "AI Chatbot Reply", icon: Bot, border: "border-l-emerald-500" },
 }
 
 const ADDABLE_STEPS: AutomationStepType[] = [
   "send_message",
   "send_template",
+  "ai_chatbot",
   "add_tag",
   "remove_tag",
   "assign_conversation",
@@ -150,6 +153,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { url: "", headers: {}, body_template: "" }
     case "close_conversation":
       return {}
+    case "ai_chatbot":
+      return { system_prompt: "You are a helpful customer support assistant.", knowledge_base: "", max_tokens: 300 }
     default:
       return {}
   }
@@ -925,6 +930,45 @@ function StepEditor({
           Sets the conversation status to &quot;closed&quot;. No configuration needed.
         </p>
       )
+    case "ai_chatbot":
+      return (
+        <>
+          <FieldBlock label="System Prompt / Persona">
+            <Textarea
+              value={(cfg.system_prompt as string) ?? ""}
+              onChange={(e) => set({ system_prompt: e.target.value })}
+              placeholder="You are a helpful assistant for [Business Name]. Reply in a friendly, professional tone..."
+              className="min-h-24 bg-slate-800 text-white text-xs"
+            />
+          </FieldBlock>
+          <FieldBlock label="Knowledge Base (optional)">
+            <Textarea
+              value={(cfg.knowledge_base as string) ?? ""}
+              onChange={(e) => set({ knowledge_base: e.target.value })}
+              placeholder="Business hours: Mon–Sat 9am–6pm. Services: ... Pricing: ..."
+              className="min-h-20 bg-slate-800 text-white text-xs"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Paste your business info, FAQs, services, or product details here. The AI uses this to reply accurately.
+            </p>
+          </FieldBlock>
+          <FieldBlock label="Max Tokens">
+            <Input
+              type="number"
+              min={50}
+              max={1000}
+              value={(cfg.max_tokens as number) ?? 300}
+              onChange={(e) => set({ max_tokens: Math.min(1000, Math.max(50, Number(e.target.value))) })}
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <div className="mt-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+            <p className="text-[11px] text-emerald-400">
+              <span className="font-semibold">🤖 AI Chatbot</span> — When triggered, Gemini AI will read the last customer message and generate a reply using your persona and knowledge base, then send it via WhatsApp automatically.
+            </p>
+          </div>
+        </>
+      )
     default:
       return null
   }
@@ -957,6 +1001,8 @@ function previewFor(step: BuilderStep): string {
       return `when ${step.step_config.subject ?? "?"}`
     case "send_webhook":
       return (step.step_config.url as string) || "no url"
+    case "ai_chatbot":
+      return (step.step_config.system_prompt as string)?.slice(0, 40) || "configure AI persona"
     default:
       return ""
   }

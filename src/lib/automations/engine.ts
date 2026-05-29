@@ -13,6 +13,7 @@ import type {
   WaitStepConfig,
   CreateDealStepConfig,
   AssignConversationStepConfig,
+  AiChatbotStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
@@ -441,6 +442,58 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .eq('user_id', args.automation.user_id)
         .eq('contact_id', args.contactId)
       return 'conversation closed'
+    }
+
+    case 'ai_chatbot': {
+      const cfg = step.step_config as AiChatbotStepConfig
+      if (!args.contactId) throw new Error('ai_chatbot needs a contact')
+      if (!cfg.system_prompt) throw new Error('ai_chatbot needs a system_prompt')
+
+      const incomingText = args.context.message_text ?? ''
+      if (!incomingText.trim()) return 'ai_chatbot skipped: no incoming message text'
+
+      // Build the prompt for Gemini
+      const knowledgeSection = cfg.knowledge_base?.trim()
+        ? `\n\n--- KNOWLEDGE BASE ---\n${cfg.knowledge_base.trim()}\n--- END KNOWLEDGE BASE ---`
+        : ''
+      const fullSystemPrompt = `${cfg.system_prompt}${knowledgeSection}`
+
+      const geminiApiKey = process.env.GEMINI_API_KEY
+      if (!geminiApiKey) throw new Error('GEMINI_API_KEY not configured in environment variables')
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: fullSystemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: incomingText }] }],
+            generationConfig: { maxOutputTokens: cfg.max_tokens ?? 300 },
+          }),
+        }
+      )
+
+      if (!geminiRes.ok) {
+        const errBody = await geminiRes.text().catch(() => '')
+        throw new Error(`Gemini API error ${geminiRes.status}: ${errBody.slice(0, 200)}`)
+      }
+
+      const geminiData = await geminiRes.json() as {
+        candidates?: { content?: { parts?: { text?: string }[] } }[]
+      }
+      const replyText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+      if (!replyText) throw new Error('Gemini returned empty response')
+
+      // Send the AI-generated reply via WhatsApp
+      const conversationId = await resolveConversationId(args)
+      const { whatsapp_message_id } = await engineSendText({
+        userId: args.automation.user_id,
+        conversationId,
+        contactId: args.contactId,
+        text: replyText,
+      })
+      return `ai_chatbot reply sent (${whatsapp_message_id})`
     }
 
     default:

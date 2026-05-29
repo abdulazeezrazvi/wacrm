@@ -245,7 +245,8 @@ export type AutomationStepType =
   | 'wait'
   | 'condition'
   | 'send_webhook'
-  | 'close_conversation';
+  | 'close_conversation'
+  | 'ai_chatbot';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
 
@@ -328,6 +329,15 @@ export interface SendWebhookStepConfig {
   body_template?: string;
 }
 
+export interface AiChatbotStepConfig {
+  /** System persona / instructions for the AI chatbot */
+  system_prompt: string;
+  /** Custom knowledge base text the AI should use when replying */
+  knowledge_base?: string;
+  /** Max tokens to generate (default 300) */
+  max_tokens?: number;
+}
+
 export type AutomationStepConfig =
   | SendMessageStepConfig
   | SendTemplateStepConfig
@@ -338,6 +348,7 @@ export type AutomationStepConfig =
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
+  | AiChatbotStepConfig
   | Record<string, never>
   | Record<string, unknown>;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,17 +13,52 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle } from "lucide-react";
+import { MessageSquare, CheckCircle, Tag } from "lucide-react";
+
+interface SaasSettings {
+  free_code: string | null;
+  discount_code: string | null;
+  discount_percentage: number;
+}
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoStatus, setPromoStatus] = useState<{ type: 'free' | 'discount' | 'error'; msg: string } | null>(null);
+  const [saasSettings, setSaasSettings] = useState<SaasSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const supabase = createClient();
+
+  // Load saas_settings once on mount so we can validate promo codes client-side
+  useEffect(() => {
+    supabase
+      .from('saas_settings')
+      .select('free_code,discount_code,discount_percentage')
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setSaasSettings(data as SaasSettings);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function validatePromoCode(code: string) {
+    const trimmed = code.trim().toUpperCase();
+    if (!trimmed || !saasSettings) { setPromoStatus(null); return; }
+
+    if (saasSettings.free_code && trimmed === saasSettings.free_code.toUpperCase()) {
+      setPromoStatus({ type: 'free', msg: '🎉 Lifetime free access! Your account will never be billed.' });
+    } else if (saasSettings.discount_code && trimmed === saasSettings.discount_code.toUpperCase()) {
+      setPromoStatus({ type: 'discount', msg: `🏷️ ${saasSettings.discount_percentage}% discount will be applied to your subscription.` });
+    } else {
+      setPromoStatus({ type: 'error', msg: '❌ Invalid promo code.' });
+    }
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +76,17 @@ export default function SignupPage() {
 
     setLoading(true);
 
+    const trimmedCode = promoCode.trim().toUpperCase();
+    const isLifetimeFree = saasSettings?.free_code && trimmedCode === saasSettings.free_code.toUpperCase();
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
+          promo_code: trimmedCode || null,
+          subscription_status: isLifetimeFree ? 'lifetime_free' : 'trial',
         },
       },
     });
@@ -102,7 +142,7 @@ export default function SignupPage() {
           </div>
           <CardTitle className="text-xl text-white">Create account</CardTitle>
           <CardDescription className="text-slate-400">
-            Get started with CRM Template for WhatsApp
+            Get started with CRM for WhatsApp — 1 month free
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -171,6 +211,37 @@ export default function SignupPage() {
                 required
                 className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-violet-500 focus-visible:ring-violet-500/20"
               />
+            </div>
+
+            {/* Promo / Lifetime Code */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="promoCode" className="flex items-center gap-1.5 text-slate-300">
+                <Tag className="h-3.5 w-3.5" />
+                Promo / Lifetime code <span className="text-slate-500">(optional)</span>
+              </Label>
+              <Input
+                id="promoCode"
+                type="text"
+                placeholder="e.g. LIFETIMEFREE"
+                value={promoCode}
+                onChange={(e) => {
+                  const v = e.target.value.toUpperCase();
+                  setPromoCode(v);
+                  validatePromoCode(v);
+                }}
+                className="border-slate-700 bg-slate-800 font-mono text-white placeholder:text-slate-500 focus-visible:border-violet-500 focus-visible:ring-violet-500/20"
+              />
+              {promoStatus && (
+                <p className={`rounded-md px-3 py-2 text-xs ${
+                  promoStatus.type === 'error'
+                    ? 'bg-rose-500/10 text-rose-400'
+                    : promoStatus.type === 'free'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-amber-500/10 text-amber-400'
+                }`}>
+                  {promoStatus.msg}
+                </p>
+              )}
             </div>
 
             <Button
