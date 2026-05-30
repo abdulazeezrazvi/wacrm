@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
 interface AdminAutomation {
@@ -19,51 +21,87 @@ interface AdminAutomation {
 export default function AdminAutomationsPage() {
   const [automations, setAutomations] = useState<AdminAutomation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const db = createClient();
+
+    const { data, error } = await db
+      .from("automations")
+      .select(
+        "id, user_id, name, description, trigger_type, is_active, execution_count, last_executed_at, created_at",
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[admin/automations]", error);
+      toast.error("Failed to load automations list");
+      setLoading(false);
+      return;
+    }
+
+    const userIds = [...new Set((data ?? []).map((a) => a.user_id))];
+    let profileMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await db
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", userIds);
+      profileMap = (profiles ?? []).reduce(
+        (acc, p) => {
+          acc[p.user_id] = p.full_name || "Unknown";
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
+    }
+
+    setAutomations(
+      (data ?? []).map((a) => ({
+        ...a,
+        owner_name: profileMap[a.user_id] ?? "Unknown",
+      })),
+    );
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const load = async () => {
-      const db = createClient();
-
-      const { data, error } = await db
-        .from("automations")
-        .select(
-          "id, user_id, name, description, trigger_type, is_active, execution_count, last_executed_at, created_at",
-        )
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("[admin/automations]", error);
-        setLoading(false);
-        return;
-      }
-
-      const userIds = [...new Set((data ?? []).map((a) => a.user_id))];
-      let profileMap: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await db
-          .from("profiles")
-          .select("user_id, full_name")
-          .in("user_id", userIds);
-        profileMap = (profiles ?? []).reduce(
-          (acc, p) => {
-            acc[p.user_id] = p.full_name || "Unknown";
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-      }
-
-      setAutomations(
-        (data ?? []).map((a) => ({
-          ...a,
-          owner_name: profileMap[a.user_id] ?? "Unknown",
-        })),
-      );
-      setLoading(false);
-    };
-
     load();
   }, []);
+
+  const saveAsTemplate = async (a: AdminAutomation) => {
+    const desc = prompt(
+      `Enter a description for the global template "${a.name}":`,
+      a.description || "Pre-built custom workflow template defined by administrator.",
+    );
+
+    if (desc === null) return; // User cancelled
+
+    setPublishingId(a.id);
+    try {
+      const res = await fetch("/api/admin/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          automationId: a.id,
+          description: desc.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || `Error ${res.status}`);
+      }
+
+      toast.success(`Successfully published "${a.name}" as a global template!`);
+    } catch (err) {
+      console.error("[admin/automations] publish template failed:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to publish template");
+    } finally {
+      setPublishingId(null);
+    }
+  };
 
   const triggerLabel: Record<string, string> = {
     new_message_received: "New Message",
@@ -80,7 +118,7 @@ export default function AdminAutomationsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">All Automations</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Automation workflows across all accounts.
+          Automation workflows across all accounts. Administrators can publish any user's workflow as a template for everyone to use.
         </p>
       </div>
 
@@ -98,13 +136,14 @@ export default function AdminAutomationsPage() {
               <th className="hidden px-4 py-3 font-medium text-slate-400 md:table-cell">
                 Last Run
               </th>
+              <th className="px-4 py-3 font-medium text-slate-400">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
             {loading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <div className="h-4 w-24 rounded bg-slate-800" />
                       </td>
@@ -150,6 +189,22 @@ export default function AdminAutomationsPage() {
                       {a.last_executed_at
                         ? new Date(a.last_executed_at).toLocaleString()
                         : "Never"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => saveAsTemplate(a)}
+                        disabled={publishingId !== null}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/20 disabled:opacity-50 transition-all border border-amber-500/20"
+                        title="Make this a global template for all users"
+                      >
+                        {publishingId === a.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                        ) : (
+                          <Sparkles className="h-3 w-3" />
+                        )}
+                        Save as Template
+                      </button>
                     </td>
                   </tr>
                 ))}

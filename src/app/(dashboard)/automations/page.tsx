@@ -15,6 +15,9 @@ import {
   Clock,
   Users,
   PhoneCall,
+  Calendar,
+  AlertTriangle,
+  Sparkles,
   Loader2,
 } from "lucide-react"
 
@@ -46,6 +49,10 @@ const TEMPLATE_ORDER: TemplateSlug[] = [
   "out_of_office",
   "lead_qualifier",
   "follow_up_reminder",
+  "appointment_booking",
+  "support_escalator",
+  "lead_reactivation",
+  "lead_generation",
 ]
 
 const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
@@ -53,11 +60,16 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
   out_of_office: Clock,
   lead_qualifier: Users,
   follow_up_reminder: PhoneCall,
+  appointment_booking: Calendar,
+  support_escalator: AlertTriangle,
+  lead_reactivation: Sparkles,
+  lead_generation: Zap,
 }
 
 export default function AutomationsPage() {
   const router = useRouter()
   const [automations, setAutomations] = useState<Automation[] | null>(null)
+  const [globalTemplates, setGlobalTemplates] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -71,6 +83,19 @@ export default function AutomationsPage() {
         .order("created_at", { ascending: false })
       if (fetchErr) throw fetchErr
       setAutomations((data ?? []) as Automation[])
+
+      // Load dynamic global templates from the admin-defined templates database
+      try {
+        const { data: gtData, error: gtError } = await supabase
+          .from("global_templates")
+          .select("*")
+          .order("created_at", { ascending: false })
+        if (!gtError && gtData) {
+          setGlobalTemplates(gtData)
+        }
+      } catch (gtErr) {
+        console.warn("Could not load global_templates table:", gtErr)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load automations")
     }
@@ -171,28 +196,55 @@ export default function AutomationsPage() {
         </Button>
       </div>
 
-      {showTemplates && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold text-slate-300">Quick-start templates</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {TEMPLATE_ORDER.map((slug) => {
-              const t = AUTOMATION_TEMPLATES[slug]
-              const Icon = TEMPLATE_ICON[slug]
-              return (
-                <button
-                  key={slug}
-                  onClick={() => startFromTemplate(slug)}
-                  className="group flex flex-col items-start rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition-colors hover:border-violet-500/50 hover:bg-slate-900/80"
-                >
-                  <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400 group-hover:bg-violet-500/15">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="text-sm font-semibold text-white">{t.name}</div>
-                  <p className="mt-1 text-xs text-slate-400">{t.description}</p>
-                </button>
-              )
-            })}
-          </div>
+      {(showTemplates || globalTemplates.length > 0) && (
+        <section className="space-y-6">
+          {showTemplates && (
+            <div>
+              <h2 className="mb-3 text-sm font-semibold text-slate-300">Quick-start templates</h2>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {TEMPLATE_ORDER.map((slug) => {
+                  const t = AUTOMATION_TEMPLATES[slug]
+                  const Icon = TEMPLATE_ICON[slug]
+                  return (
+                    <button
+                      key={slug}
+                      onClick={() => startFromTemplate(slug)}
+                      className="group flex flex-col items-start rounded-xl border border-slate-800 bg-slate-900 p-4 text-left transition-colors hover:border-violet-500/50 hover:bg-slate-900/80"
+                    >
+                      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400 group-hover:bg-violet-500/15">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="text-sm font-semibold text-white">{t.name}</div>
+                      <p className="mt-1 text-xs text-slate-400">{t.description}</p>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {globalTemplates.length > 0 && (
+            <div>
+              <h2 className="mb-3 text-sm font-semibold text-amber-400 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4" /> Admin Custom Templates
+              </h2>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {globalTemplates.map((gt) => (
+                  <button
+                    key={gt.id}
+                    onClick={() => router.push(`/automations/new?template=${gt.id}`)}
+                    className="group flex flex-col items-start rounded-xl border border-amber-500/20 bg-slate-900 p-4 text-left transition-colors hover:border-amber-500/50 hover:bg-slate-900/80"
+                  >
+                    <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/15">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div className="text-sm font-semibold text-white">{gt.name}</div>
+                    <p className="mt-1 text-xs text-slate-400">{gt.description || "Custom template defined by administrator."}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
