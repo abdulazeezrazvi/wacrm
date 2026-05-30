@@ -246,7 +246,12 @@ export type AutomationStepType =
   | 'condition'
   | 'send_webhook'
   | 'close_conversation'
-  | 'ai_chatbot';
+  | 'ai_chatbot'
+  | 'google_sheets'
+  | 'google_calendar'
+  | 'notion'
+  | 'send_email'
+  | 'send_admin_alert';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
 
@@ -342,6 +347,69 @@ export interface AiChatbotStepConfig {
   ai_model?: string;
 }
 
+export interface GoogleSheetsStepConfig {
+  /** Full Google Sheets spreadsheet URL or ID */
+  spreadsheet_id: string;
+  /** Sheet/tab name to target */
+  sheet_name: string;
+  /** Google API Key for Sheets API */
+  api_key: string;
+  /** Action: append_row or update_row */
+  action: 'append_row' | 'update_row';
+  /** Row data as key-value pairs (column header → value) */
+  row_data: Record<string, string>;
+}
+
+export interface GoogleCalendarStepConfig {
+  /** Google Calendar ID (default: 'primary') */
+  calendar_id: string;
+  /** Google API Key or OAuth token */
+  api_key: string;
+  /** Event title/summary */
+  summary: string;
+  /** Event description */
+  description?: string;
+  /** ISO start datetime */
+  start_time: string;
+  /** ISO end datetime */
+  end_time: string;
+  /** Timezone (e.g. 'Asia/Kolkata') */
+  timezone?: string;
+}
+
+export interface NotionStepConfig {
+  /** Notion database ID */
+  database_id: string;
+  /** Notion integration/API token */
+  api_key: string;
+  /** Properties to set on the new page (property name → value) */
+  properties: Record<string, string>;
+}
+
+export interface SendEmailStepConfig {
+  /** Recipient email address */
+  to: string;
+  /** Email subject line */
+  subject: string;
+  /** Email body (plain text or HTML) */
+  body: string;
+  /** SMTP host (optional — uses default if not set) */
+  smtp_host?: string;
+  /** SMTP port */
+  smtp_port?: number;
+  /** SMTP username */
+  smtp_user?: string;
+  /** SMTP password */
+  smtp_pass?: string;
+}
+
+export interface SendAdminAlertStepConfig {
+  /** Admin's WhatsApp phone number (with country code) */
+  admin_phone: string;
+  /** Pre-typed alert message text */
+  alert_message: string;
+}
+
 export type AutomationStepConfig =
   | SendMessageStepConfig
   | SendTemplateStepConfig
@@ -353,6 +421,11 @@ export type AutomationStepConfig =
   | ConditionStepConfig
   | SendWebhookStepConfig
   | AiChatbotStepConfig
+  | GoogleSheetsStepConfig
+  | GoogleCalendarStepConfig
+  | NotionStepConfig
+  | SendEmailStepConfig
+  | SendAdminAlertStepConfig
   | Record<string, never>
   | Record<string, unknown>;
 
