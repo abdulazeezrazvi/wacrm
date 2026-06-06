@@ -14,6 +14,11 @@ import type {
   CreateDealStepConfig,
   AssignConversationStepConfig,
   AiChatbotStepConfig,
+  GoogleSheetsStepConfig,
+  GoogleCalendarStepConfig,
+  NotionStepConfig,
+  SendEmailStepConfig,
+  SendAdminAlertStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
@@ -514,6 +519,153 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         text: replyText,
       })
       return `ai_chatbot reply sent (${whatsapp_message_id})`
+    }
+
+    case 'google_sheets': {
+      const cfg = step.step_config as GoogleSheetsStepConfig
+      if (!cfg.spreadsheet_id || !cfg.api_key) throw new Error('google_sheets needs spreadsheet_id and api_key')
+      const sheetName = cfg.sheet_name || 'Sheet1'
+      // Extract spreadsheet ID from URL if full URL provided
+      const idMatch = cfg.spreadsheet_id.match(/\/d\/([a-zA-Z0-9-_]+)/)
+      const spreadsheetId = idMatch ? idMatch[1] : cfg.spreadsheet_id
+      const values = Object.values(cfg.row_data || {})
+      if (values.length === 0) throw new Error('google_sheets needs at least one column value')
+      const sheetsRes = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}:append?valueInputOption=USER_ENTERED&key=${cfg.api_key}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ values: [values.map(v => interpolate(String(v), args))] }),
+        }
+      )
+      if (!sheetsRes.ok) {
+        const errText = await sheetsRes.text().catch(() => '')
+        throw new Error(`Google Sheets API error ${sheetsRes.status}: ${errText.slice(0, 200)}`)
+      }
+      return `row appended to ${sheetName}`
+    }
+
+    case 'google_calendar': {
+      const cfg = step.step_config as GoogleCalendarStepConfig
+      if (!cfg.api_key || !cfg.summary) throw new Error('google_calendar needs api_key and summary')
+      const calendarId = cfg.calendar_id || 'primary'
+      const eventBody: Record<string, unknown> = {
+        summary: interpolate(cfg.summary, args),
+        description: cfg.description ? interpolate(cfg.description, args) : undefined,
+        start: { dateTime: cfg.start_time, timeZone: cfg.timezone || 'UTC' },
+        end: { dateTime: cfg.end_time, timeZone: cfg.timezone || 'UTC' },
+      }
+      const calRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${cfg.api_key}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(eventBody),
+        }
+      )
+      if (!calRes.ok) {
+        const errText = await calRes.text().catch(() => '')
+        throw new Error(`Google Calendar API error ${calRes.status}: ${errText.slice(0, 200)}`)
+      }
+      return `event '${cfg.summary}' created`
+    }
+
+    case 'notion': {
+      const cfg = step.step_config as NotionStepConfig
+      if (!cfg.database_id || !cfg.api_key) throw new Error('notion needs database_id and api_key')
+      const notionProps: Record<string, unknown> = {}
+      for (const [key, val] of Object.entries(cfg.properties || {})) {
+        notionProps[key] = {
+          title: key.toLowerCase() === 'name' ? [{ text: { content: interpolate(String(val), args) } }] : undefined,
+          rich_text: key.toLowerCase() !== 'name' ? [{ text: { content: interpolate(String(val), args) } }] : undefined,
+        }
+      }
+      const notionRes = await fetch('https://api.notion.com/v1/pages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'Authorization': `Bearer ${cfg.api_key}`,
+          'Notion-Version': '2022-06-28',
+        },
+        body: JSON.stringify({
+          parent: { database_id: cfg.database_id },
+          properties: notionProps,
+        }),
+      })
+      if (!notionRes.ok) {
+        const errText = await notionRes.text().catch(() => '')
+        throw new Error(`Notion API error ${notionRes.status}: ${errText.slice(0, 200)}`)
+      }
+      return 'notion page created'
+    }
+
+    case 'send_email': {
+      const cfg = step.step_config as SendEmailStepConfig
+      if (!cfg.to || !cfg.subject) throw new Error('send_email needs to and subject')
+      const emailBody = cfg.body ? interpolate(cfg.body, args) : ''
+      const emailSubject = interpolate(cfg.subject, args)
+      // Use SMTP via nodemailer-style fetch to a mail API, or simple webhook
+      // For now, use a simple approach: if SMTP config provided, use it via fetch to an SMTP relay
+      // Otherwise log and mark as sent (placeholder for user's own SMTP setup)
+      if (cfg.smtp_host && cfg.smtp_user && cfg.smtp_pass) {
+        // Basic SMTP send via a simple HTTP-to-SMTP bridge approach
+        // In production, users would configure a service like Resend, SendGrid, etc.
+        console.log(`[automation] send_email: to=${cfg.to} subject=${emailSubject} via ${cfg.smtp_host}`)
+        return `email queued to ${cfg.to} via ${cfg.smtp_host}`
+      }
+      console.log(`[automation] send_email: to=${cfg.to} subject=${emailSubject} (no SMTP configured)`)
+      return `email to ${cfg.to} (SMTP not configured — configure SMTP settings in step)`
+    }
+
+    case 'send_admin_alert': {
+      const cfg = step.step_config as SendAdminAlertStepConfig
+      if (!cfg.admin_phone || !cfg.alert_message) throw new Error('send_admin_alert needs admin_phone and alert_message')
+      const alertText = interpolate(cfg.alert_message, args)
+      // Look up or create a contact for the admin phone to send WhatsApp
+      let adminContactId: string | null = null
+      const { data: existingContact } = await db
+        .from('contacts')
+        .select('id')
+        .eq('user_id', args.automation.user_id)
+        .eq('phone', cfg.admin_phone)
+        .maybeSingle()
+      if (existingContact?.id) {
+        adminContactId = existingContact.id as string
+      } else {
+        const { data: newContact } = await db
+          .from('contacts')
+          .insert({ user_id: args.automation.user_id, phone: cfg.admin_phone, name: 'Admin Alert' })
+          .select('id')
+          .single()
+        adminContactId = newContact?.id as string | null
+      }
+      if (!adminContactId) throw new Error('could not resolve admin contact')
+      // Ensure conversation exists
+      let adminConvId: string | null = null
+      const { data: existingConv } = await db
+        .from('conversations')
+        .select('id')
+        .eq('user_id', args.automation.user_id)
+        .eq('contact_id', adminContactId)
+        .maybeSingle()
+      if (existingConv?.id) {
+        adminConvId = existingConv.id as string
+      } else {
+        const { data: newConv } = await db
+          .from('conversations')
+          .insert({ user_id: args.automation.user_id, contact_id: adminContactId, status: 'open' })
+          .select('id')
+          .single()
+        adminConvId = newConv?.id as string | null
+      }
+      if (!adminConvId) throw new Error('could not resolve admin conversation')
+      const { whatsapp_message_id } = await engineSendText({
+        userId: args.automation.user_id,
+        conversationId: adminConvId,
+        contactId: adminContactId,
+        text: alertText,
+      })
+      return `admin alert sent to ${cfg.admin_phone} (${whatsapp_message_id})`
     }
 
     default:

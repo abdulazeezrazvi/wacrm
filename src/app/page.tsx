@@ -411,11 +411,11 @@ export default function LandingPage() {
                   <span className="ml-2 text-slate-500">AI Chatbot Step Config</span>
                 </div>
                 <div className="space-y-2 text-slate-300">
-                  <div><span className="text-violet-400">system_prompt</span>: <span className="text-amber-300">"You are Priya, a helpful assistant for QuickFix Services. Respond warmly in Hindi or English."</span></div>
-                  <div className="mt-2"><span className="text-violet-400">knowledge_base</span>: <span className="text-amber-300">"We offer AC repair, plumbing, and electrician services. Prices start at ₹299. Working hours: 8am–8pm Mon–Sat."</span></div>
+                  <div><span className="text-violet-400">system_prompt</span>: <span className="text-amber-300">"You are Aria, the AI assistant for BK Nuxes. Greet leads warmly but keep messages under 3 lines. Qualify business type."</span></div>
+                  <div className="mt-2"><span className="text-violet-400">knowledge_base</span>: <span className="text-amber-300">"Services: Admin Dashboard (₹12k + ₹1.5k/mo), Landing Page (₹5k + ₹800/mo), E-commerce Store (₹18k + ₹2.5k/mo). Live preview built on call."</span></div>
                   <div className="mt-3 border-t border-slate-800 pt-3 text-slate-400">
                     <span className="text-emerald-400">▶ Auto-reply generated:</span>
-                    <p className="mt-1 text-slate-300">"Namaste! Main Priya hoon. Aap kaise help kar sakti hoon aaj? Hamare AC repair service ki starting price ₹299 hai. 😊"</p>
+                    <p className="mt-1 text-slate-300">"Hi! I'm Aria from BK Nuxes. Quick question — what kind of business do you run? 😊"</p>
                   </div>
                 </div>
               </div>

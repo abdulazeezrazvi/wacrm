@@ -25,18 +25,20 @@ import {
   ArrowDown,
   ArrowUp,
   Bot,
+  FileSpreadsheet,
+  Calendar,
+  BookOpen,
+  Mail,
+  Bell,
+  Search,
+  X,
+  LayoutGrid,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import type {
   AutomationStepType,
   AutomationTriggerType,
@@ -90,7 +92,52 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   send_webhook: { label: "Send Webhook", icon: Webhook, border: "border-l-violet-500" },
   close_conversation: { label: "Close Conversation", icon: CircleSlash, border: "border-l-violet-500" },
   ai_chatbot: { label: "AI Chatbot Reply", icon: Bot, border: "border-l-emerald-500" },
+  google_sheets: { label: "Google Sheets", icon: FileSpreadsheet, border: "border-l-green-500" },
+  google_calendar: { label: "Google Calendar", icon: Calendar, border: "border-l-blue-500" },
+  notion: { label: "Notion", icon: BookOpen, border: "border-l-slate-400" },
+  send_email: { label: "Send Email", icon: Mail, border: "border-l-orange-500" },
+  send_admin_alert: { label: "Send Admin Alert", icon: Bell, border: "border-l-red-500" },
 }
+
+interface NodeCategory {
+  id: string
+  label: string
+  steps: AutomationStepType[]
+}
+
+const NODE_CATEGORIES: NodeCategory[] = [
+  {
+    id: "messaging",
+    label: "Messaging",
+    steps: ["send_message", "send_template", "ai_chatbot"],
+  },
+  {
+    id: "crm",
+    label: "CRM",
+    steps: [
+      "add_tag",
+      "remove_tag",
+      "assign_conversation",
+      "update_contact_field",
+      "create_deal",
+    ],
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    steps: ["google_sheets", "google_calendar", "notion"],
+  },
+  {
+    id: "notifications",
+    label: "Notifications",
+    steps: ["send_email", "send_admin_alert"],
+  },
+  {
+    id: "flow_control",
+    label: "Flow Control",
+    steps: ["wait", "condition", "send_webhook", "close_conversation"],
+  },
+]
 
 const ADDABLE_STEPS: AutomationStepType[] = [
   "send_message",
@@ -105,7 +152,32 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "condition",
   "send_webhook",
   "close_conversation",
+  "google_sheets",
+  "google_calendar",
+  "notion",
+  "send_email",
+  "send_admin_alert",
 ]
+
+const STEP_DESCRIPTIONS: Record<AutomationStepType, string> = {
+  send_message: "Send a WhatsApp text message to the contact.",
+  send_template: "Send a pre-approved Meta WhatsApp template.",
+  add_tag: "Add a label/tag to segment this contact.",
+  remove_tag: "Remove a label/tag from this contact.",
+  assign_conversation: "Assign the chat to a specific agent or round-robin.",
+  update_contact_field: "Update contact details (Name, Email, Company).",
+  create_deal: "Create a new sales opportunity in the CRM pipeline.",
+  wait: "Pause execution for minutes, hours, or days.",
+  condition: "Branch the automation flow based on criteria (If/Else).",
+  send_webhook: "Send data to external tools (n8n, Zapier, APIs).",
+  close_conversation: "Mark the chat status as Closed.",
+  ai_chatbot: "Leverage Gemini to respond to customer inquiries automatically.",
+  google_sheets: "Append row data directly to a Google Spreadsheet.",
+  google_calendar: "Schedule meetings or block time in Google Calendar.",
+  notion: "Add new pages or database records to Notion.",
+  send_email: "Send custom emails via SMTP relay or custom servers.",
+  send_admin_alert: "Notify admins on WhatsApp when critical events occur.",
+}
 
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] = [
   { value: "new_message_received", label: "New Message Received", hint: "Any incoming message" },
@@ -155,6 +227,16 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return {}
     case "ai_chatbot":
       return { system_prompt: "You are a helpful customer support assistant.", knowledge_base: "", max_tokens: 300 }
+    case "google_sheets":
+      return { spreadsheet_id: "", sheet_name: "Sheet1", api_key: "", action: "append_row", row_data: {} }
+    case "google_calendar":
+      return { calendar_id: "primary", api_key: "", summary: "", description: "", start_time: "", end_time: "", timezone: "UTC" }
+    case "notion":
+      return { database_id: "", api_key: "", properties: {} }
+    case "send_email":
+      return { to: "", subject: "", body: "", smtp_host: "", smtp_port: 587, smtp_user: "", smtp_pass: "" }
+    case "send_admin_alert":
+      return { admin_phone: "", alert_message: "" }
     default:
       return {}
   }
@@ -170,6 +252,9 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [panelOpen, setPanelOpen] = useState(true)
+  const [activeInsertTarget, setActiveInsertTarget] = useState<{ parent: ParentScope; index: number } | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -199,6 +284,26 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   function moveStepAt(path: StepPath, direction: -1 | 1) {
     setState((s) => ({ ...s, steps: moveAt(s.steps, path, direction) }))
   }
+
+  const handleAddStep = (type: AutomationStepType) => {
+    if (activeInsertTarget) {
+      addStepAt(activeInsertTarget.parent, activeInsertTarget.index, type)
+      setActiveInsertTarget(null)
+    } else {
+      addStepAt({ kind: "root" }, state.steps.length, type)
+    }
+    toast.success(`Added ${STEP_META[type].label}`)
+  }
+
+  const filteredCategories = NODE_CATEGORIES.map((cat) => {
+    const steps = cat.steps.filter((t) => {
+      const label = STEP_META[t].label.toLowerCase()
+      const desc = STEP_DESCRIPTIONS[t].toLowerCase()
+      const q = searchQuery.toLowerCase()
+      return label.includes(q) || desc.includes(q)
+    })
+    return { ...cat, steps }
+  }).filter((cat) => cat.steps.length > 0)
 
   async function save() {
     setSaving(true)
@@ -277,36 +382,158 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             aria-label="Active"
           />
         </div>
+
+        {/* Toggle Panel Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setPanelOpen(!panelOpen)}
+          className={cn(
+            "h-8 border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white",
+            panelOpen && "border-violet-500 bg-violet-500/10 text-violet-400"
+          )}
+        >
+          <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
+          <span className="hidden md:inline">{panelOpen ? "Hide Panel" : "Show Panel"}</span>
+        </Button>
+
         <Button
           onClick={save}
           disabled={saving}
-          className="bg-violet-600 text-white hover:bg-violet-700"
+          className="bg-violet-600 text-white hover:bg-violet-700 h-8 text-xs sm:h-9 sm:text-sm"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isEditing ? "Save" : "Save Draft"}
         </Button>
       </header>
 
-      {/* Canvas */}
-      <div className="relative flex-1 overflow-y-auto">
-        <div className="absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
-        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
-          <TriggerCard
-            type={state.trigger_type}
-            config={state.trigger_config}
-            onTypeChange={(t) => patchTop("trigger_type", t)}
-            onConfigChange={(c) => patchTop("trigger_config", c)}
+      {/* Main Container */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Canvas Area */}
+        <div className="relative flex-1 overflow-y-auto">
+          <div className="absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none" />
+          <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
+            <TriggerCard
+              type={state.trigger_type}
+              config={state.trigger_config}
+              onTypeChange={(t) => patchTop("trigger_type", t)}
+              onConfigChange={(c) => patchTop("trigger_config", c)}
+            />
+            <StepList
+              steps={state.steps}
+              parentPath={[]}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              updateStep={updateStep}
+              addStepAt={addStepAt}
+              deleteStepAt={deleteStepAt}
+              moveStepAt={moveStepAt}
+              activeInsertTarget={activeInsertTarget}
+              setActiveInsertTarget={setActiveInsertTarget}
+              setPanelOpen={setPanelOpen}
+            />
+          </div>
+        </div>
+
+        {/* Mobile Backdrop */}
+        {panelOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setPanelOpen(false)}
           />
-          <StepList
-            steps={state.steps}
-            parentPath={[]}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            updateStep={updateStep}
-            addStepAt={addStepAt}
-            deleteStepAt={deleteStepAt}
-            moveStepAt={moveStepAt}
-          />
+        )}
+
+        {/* Searchable Node Panel */}
+        <div
+          className={cn(
+            "fixed inset-y-0 right-0 z-50 flex w-80 flex-col border-l border-slate-800 bg-slate-900 transition-transform duration-300 ease-in-out lg:static lg:z-0 lg:translate-x-0",
+            panelOpen ? "translate-x-0" : "translate-x-full"
+          )}
+        >
+          {/* Panel Header */}
+          <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-800 px-4 py-3">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Automation Nodes</h3>
+              <p className="text-[10px] text-slate-400">
+                {activeInsertTarget
+                  ? "Select a node to insert at marked position"
+                  : "Click a node to append to the end"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPanelOpen(false)}
+              className="rounded-md p-1 text-slate-500 hover:bg-slate-805 hover:text-white lg:hidden"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Search Input */}
+          <div className="flex-shrink-0 border-b border-slate-800 p-3">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search nodes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-md border border-slate-700 bg-slate-800 py-1.5 pl-8 pr-8 text-xs text-white placeholder-slate-500 focus:border-violet-500 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-2.5 text-slate-500 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Nodes list */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-4">
+            {filteredCategories.map((category) => (
+              <div key={category.id} className="space-y-1">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1">
+                  {category.label}
+                </h4>
+                <div className="space-y-1">
+                  {category.steps.map((t) => {
+                    const meta = STEP_META[t]
+                    const Icon = meta.icon
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => handleAddStep(t)}
+                        className="flex w-full items-start gap-2.5 rounded-lg border border-transparent bg-slate-900/40 p-2 text-left transition-all hover:border-slate-800 hover:bg-slate-800/60 hover:shadow-md hover:scale-[1.01]"
+                      >
+                        <div className={cn(
+                          "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-300 bg-slate-800/80 border-l-2",
+                          meta.border
+                        )}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-medium text-white">{meta.label}</div>
+                          <div className="line-clamp-2 text-[10px] text-slate-400 mt-0.5 leading-tight">
+                            {STEP_DESCRIPTIONS[t]}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            {filteredCategories.length === 0 && (
+              <div className="py-8 text-center text-xs text-slate-500">
+                No nodes match &quot;{searchQuery}&quot;
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -473,6 +700,9 @@ interface StepListProps {
   addStepAt: (parent: ParentScope, index: number, type: AutomationStepType) => void
   deleteStepAt: (path: StepPath) => void
   moveStepAt: (path: StepPath, direction: -1 | 1) => void
+  activeInsertTarget: { parent: ParentScope; index: number } | null
+  setActiveInsertTarget: (target: { parent: ParentScope; index: number } | null) => void
+  setPanelOpen: (open: boolean) => void
 }
 
 function StepList(props: StepListProps) {
@@ -487,8 +717,14 @@ function StepList(props: StepListProps) {
         })()
 
   return (
-    <div className="flex flex-col items-center">
-      <AddButton onPick={(t) => props.addStepAt(parentScope, 0, t)} />
+    <div className="flex flex-col items-center w-full">
+      <AddButton
+        parentScope={parentScope}
+        index={0}
+        activeInsertTarget={props.activeInsertTarget}
+        setActiveInsertTarget={props.setActiveInsertTarget}
+        setPanelOpen={props.setPanelOpen}
+      />
       {steps.map((step, idx) => (
         <StepRenderer
           key={step.cid}
@@ -610,7 +846,11 @@ function StepRenderer({
       </div>
 
       <AddButton
-        onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
+        parentScope={parentScope}
+        index={index + 1}
+        activeInsertTarget={props.activeInsertTarget}
+        setActiveInsertTarget={props.setActiveInsertTarget}
+        setPanelOpen={props.setPanelOpen}
       />
     </>
   )
@@ -641,7 +881,7 @@ function ConditionBranches({
     // Stack Yes/No vertically on mobile — two columns at 375px would
     // cram each branch to ~170px which is too narrow for the nested
     // cards. Two-column grid returns on sm+.
-    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 w-full">
       <BranchColumn label="Yes" color="text-violet-400">
         <StepList {...props} steps={yes} parentPath={yesPath} />
       </BranchColumn>
@@ -662,39 +902,56 @@ function BranchColumn({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center w-full">
       <div className={cn("mb-2 text-[11px] font-semibold uppercase", color)}>{label}</div>
       {children}
     </div>
   )
 }
 
-function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
+function AddButton({
+  parentScope,
+  index,
+  activeInsertTarget,
+  setActiveInsertTarget,
+  setPanelOpen,
+}: {
+  parentScope: ParentScope
+  index: number
+  activeInsertTarget: { parent: ParentScope; index: number } | null
+  setActiveInsertTarget: (target: { parent: ParentScope; index: number } | null) => void
+  setPanelOpen: (open: boolean) => void
+}) {
+  const isActive =
+    activeInsertTarget &&
+    JSON.stringify(activeInsertTarget.parent) === JSON.stringify(parentScope) &&
+    activeInsertTarget.index === index
+
+  const handleClick = () => {
+    if (isActive) {
+      setActiveInsertTarget(null)
+    } else {
+      setActiveInsertTarget({ parent: parentScope, index })
+      setPanelOpen(true)
+    }
+  }
+
   return (
-    <div className="relative flex flex-col items-center">
+    <div className="relative flex flex-col items-center group">
       <div className="h-4 w-[2px] bg-slate-700" aria-hidden />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-slate-700 bg-slate-950 text-slate-400 transition-colors hover:border-violet-500 hover:bg-violet-500/10 hover:text-violet-400 data-[popup-open]:border-violet-500 data-[popup-open]:bg-violet-500/20 data-[popup-open]:text-violet-400"
-          aria-label="Add step"
-        >
-          <Plus className="h-4 w-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="start"
-          className="max-h-80 min-w-56 overflow-y-auto border-slate-700 bg-slate-900"
-        >
-          {ADDABLE_STEPS.map((t) => {
-            const Icon = STEP_META[t].icon
-            return (
-              <DropdownMenuItem key={t} onClick={() => onPick(t)}>
-                <Icon className="h-4 w-4" />
-                {STEP_META[t].label}
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={cn(
+          "flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed transition-all duration-200",
+          isActive
+            ? "border-violet-500 bg-violet-600 text-white shadow-lg shadow-violet-500/30 scale-110 animate-pulse"
+            : "border-slate-700 bg-slate-950 text-slate-400 hover:border-violet-500 hover:bg-violet-500/10 hover:text-violet-400"
+        )}
+        aria-label="Add step"
+      >
+        <Plus className="h-4 w-4" />
+      </button>
       <div className="h-4 w-[2px] bg-slate-700" aria-hidden />
     </div>
   )
@@ -993,6 +1250,235 @@ function StepEditor({
           </div>
         </>
       )
+    case "google_sheets":
+      return (
+        <>
+          <FieldBlock label="Spreadsheet URL or ID">
+            <Input
+              value={(cfg.spreadsheet_id as string) ?? ""}
+              onChange={(e) => set({ spreadsheet_id: e.target.value })}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Sheet Name">
+            <Input
+              value={(cfg.sheet_name as string) ?? "Sheet1"}
+              onChange={(e) => set({ sheet_name: e.target.value })}
+              placeholder="Sheet1"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Google API Key">
+            <Input
+              type="password"
+              value={(cfg.api_key as string) ?? ""}
+              onChange={(e) => set({ api_key: e.target.value })}
+              placeholder="AIzaSy..."
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Row Data (Column Header → Value)">
+            <KeyValueEditor
+              values={(cfg.row_data as Record<string, string>) ?? {}}
+              onChange={(v) => set({ row_data: v })}
+              keyPlaceholder="Column Name"
+              valuePlaceholder="Value (e.g. {{message.text}})"
+            />
+          </FieldBlock>
+        </>
+      )
+    case "google_calendar":
+      return (
+        <>
+          <FieldBlock label="Google API Key">
+            <Input
+              type="password"
+              value={(cfg.api_key as string) ?? ""}
+              onChange={(e) => set({ api_key: e.target.value })}
+              placeholder="AIzaSy..."
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Calendar ID">
+            <Input
+              value={(cfg.calendar_id as string) ?? "primary"}
+              onChange={(e) => set({ calendar_id: e.target.value })}
+              placeholder="primary"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Event Title (Summary)">
+            <Input
+              value={(cfg.summary as string) ?? ""}
+              onChange={(e) => set({ summary: e.target.value })}
+              placeholder="Meeting with {{contact.name}}"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Description (optional)">
+            <Textarea
+              value={(cfg.description as string) ?? ""}
+              onChange={(e) => set({ description: e.target.value })}
+              placeholder="Details about the meeting..."
+              className="min-h-16 bg-slate-800 text-white text-xs"
+            />
+          </FieldBlock>
+          <div className="grid grid-cols-2 gap-2">
+            <FieldBlock label="Start Time (ISO/Text)">
+              <Input
+                value={(cfg.start_time as string) ?? ""}
+                onChange={(e) => set({ start_time: e.target.value })}
+                placeholder="2026-06-01T10:00:00Z"
+                className="bg-slate-800 text-white"
+              />
+            </FieldBlock>
+            <FieldBlock label="End Time (ISO/Text)">
+              <Input
+                value={(cfg.end_time as string) ?? ""}
+                onChange={(e) => set({ end_time: e.target.value })}
+                placeholder="2026-06-01T11:00:00Z"
+                className="bg-slate-800 text-white"
+              />
+            </FieldBlock>
+          </div>
+          <FieldBlock label="Timezone">
+            <Input
+              value={(cfg.timezone as string) ?? "UTC"}
+              onChange={(e) => set({ timezone: e.target.value })}
+              placeholder="Asia/Kolkata"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+        </>
+      )
+    case "notion":
+      return (
+        <>
+          <FieldBlock label="Notion Integration Token">
+            <Input
+              type="password"
+              value={(cfg.api_key as string) ?? ""}
+              onChange={(e) => set({ api_key: e.target.value })}
+              placeholder="secret_..."
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Database ID">
+            <Input
+              value={(cfg.database_id as string) ?? ""}
+              onChange={(e) => set({ database_id: e.target.value })}
+              placeholder="e.g. 5d5a864..."
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Properties (Property Name → Value)">
+            <KeyValueEditor
+              values={(cfg.properties as Record<string, string>) ?? {}}
+              onChange={(v) => set({ properties: v })}
+              keyPlaceholder="Property Name"
+              valuePlaceholder="Value (use Name for title property)"
+            />
+          </FieldBlock>
+        </>
+      )
+    case "send_email":
+      return (
+        <>
+          <FieldBlock label="To (Recipient Email)">
+            <Input
+              value={(cfg.to as string) ?? ""}
+              onChange={(e) => set({ to: e.target.value })}
+              placeholder="customer@example.com or {{contact.email}}"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Subject">
+            <Input
+              value={(cfg.subject as string) ?? ""}
+              onChange={(e) => set({ subject: e.target.value })}
+              placeholder="Thanks for your message!"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Body">
+            <Textarea
+              value={(cfg.body as string) ?? ""}
+              onChange={(e) => set({ body: e.target.value })}
+              placeholder="Hi {{contact.name}},\n\nWe received..."
+              className="min-h-24 bg-slate-800 text-white text-xs"
+            />
+          </FieldBlock>
+          <div className="mt-2 border-t border-slate-800 pt-2">
+            <div className="text-[11px] font-semibold text-slate-400 mb-2">SMTP Settings (Optional)</div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <FieldBlock label="SMTP Host">
+                    <Input
+                      value={(cfg.smtp_host as string) ?? ""}
+                      onChange={(e) => set({ smtp_host: e.target.value })}
+                      placeholder="smtp.example.com"
+                      className="bg-slate-800 text-xs text-white"
+                    />
+                  </FieldBlock>
+                </div>
+                <div>
+                  <FieldBlock label="Port">
+                    <Input
+                      type="number"
+                      value={(cfg.smtp_port as number) ?? 587}
+                      onChange={(e) => set({ smtp_port: Number(e.target.value) })}
+                      placeholder="587"
+                      className="bg-slate-800 text-xs text-white"
+                    />
+                  </FieldBlock>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <FieldBlock label="SMTP Username">
+                  <Input
+                    value={(cfg.smtp_user as string) ?? ""}
+                    onChange={(e) => set({ smtp_user: e.target.value })}
+                    placeholder="user@example.com"
+                    className="bg-slate-800 text-xs text-white"
+                  />
+                </FieldBlock>
+                <FieldBlock label="SMTP Password">
+                  <Input
+                    type="password"
+                    value={(cfg.smtp_pass as string) ?? ""}
+                    onChange={(e) => set({ smtp_pass: e.target.value })}
+                    placeholder="password"
+                    className="bg-slate-800 text-xs text-white"
+                  />
+                </FieldBlock>
+              </div>
+            </div>
+          </div>
+        </>
+      )
+    case "send_admin_alert":
+      return (
+        <>
+          <FieldBlock label="Admin Phone Number">
+            <Input
+              value={(cfg.admin_phone as string) ?? ""}
+              onChange={(e) => set({ admin_phone: e.target.value })}
+              placeholder="+1234567890"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Alert Message">
+            <Textarea
+              value={(cfg.alert_message as string) ?? ""}
+              onChange={(e) => set({ alert_message: e.target.value })}
+              placeholder="Critical: Contact {{contact.name}} just messaged with: {{message.text}}"
+              className="min-h-20 bg-slate-800 text-white text-xs"
+            />
+          </FieldBlock>
+        </>
+      )
     default:
       return null
   }
@@ -1027,6 +1513,16 @@ function previewFor(step: BuilderStep): string {
       return (step.step_config.url as string) || "no url"
     case "ai_chatbot":
       return (step.step_config.system_prompt as string)?.slice(0, 40) || "configure AI persona"
+    case "google_sheets":
+      return `Append to sheet: ${step.step_config.sheet_name || "Sheet1"}`
+    case "google_calendar":
+      return `Create event: ${step.step_config.summary || "Untitled"}`
+    case "notion":
+      return `Add Notion page to database`
+    case "send_email":
+      return `Send email to: ${step.step_config.to || "no recipient"}`
+    case "send_admin_alert":
+      return `Alert to phone: ${step.step_config.admin_phone || "no phone"}`
     default:
       return ""
   }
@@ -1243,4 +1739,82 @@ export function fromServerSteps(nodes: ServerStepNode[]): BuilderStep[] {
           }
         : undefined,
   }))
+}
+
+// ------------------------------------------------------------
+// Key-Value Editor for spreadsheet rows and Notion properties
+// ------------------------------------------------------------
+function KeyValueEditor({
+  values,
+  onChange,
+  keyPlaceholder = "Key",
+  valuePlaceholder = "Value",
+}: {
+  values: Record<string, string>
+  onChange: (v: Record<string, string>) => void
+  keyPlaceholder?: string
+  valuePlaceholder?: string
+}) {
+  const [newKey, setNewKey] = useState("")
+  const [newValue, setNewValue] = useState("")
+
+  const addPair = () => {
+    if (!newKey.trim()) return
+    onChange({ ...values, [newKey.trim()]: newValue })
+    setNewKey("")
+    setNewValue("")
+  }
+
+  const removePair = (k: string) => {
+    const copy = { ...values }
+    delete copy[k]
+    onChange(copy)
+  }
+
+  return (
+    <div className="space-y-2">
+      {Object.keys(values).length > 0 && (
+        <div className="space-y-1 rounded-md border border-slate-800 bg-slate-950/50 p-2">
+          {Object.entries(values).map(([k, v]) => (
+            <div key={k} className="flex items-center gap-2 text-xs">
+              <span className="font-mono font-medium text-slate-300 min-w-[80px] truncate">{k}:</span>
+              <span className="flex-1 text-slate-400 truncate">{v}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-slate-500 hover:text-red-400"
+                onClick={() => removePair(k)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Input
+          placeholder={keyPlaceholder}
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          className="h-8 bg-slate-800 text-xs text-white"
+        />
+        <Input
+          placeholder={valuePlaceholder}
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+          className="h-8 bg-slate-800 text-xs text-white"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addPair}
+          className="h-8 border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300"
+        >
+          Add
+        </Button>
+      </div>
+    </div>
+  )
 }

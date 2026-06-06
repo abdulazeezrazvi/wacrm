@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Sparkles,
   Loader2,
+  Bot,
 } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -53,6 +54,7 @@ const TEMPLATE_ORDER: TemplateSlug[] = [
   "support_escalator",
   "lead_reactivation",
   "lead_generation",
+  "aria_agency_assistant",
 ]
 
 const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
@@ -64,6 +66,7 @@ const TEMPLATE_ICON: Record<TemplateSlug, typeof Zap> = {
   support_escalator: AlertTriangle,
   lead_reactivation: Sparkles,
   lead_generation: Zap,
+  aria_agency_assistant: Bot,
 }
 
 export default function AutomationsPage() {
