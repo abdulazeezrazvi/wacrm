@@ -35,6 +35,14 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Time-Based',
     pillClass: 'border-slate-500/30 bg-slate-500/10 text-slate-300',
   },
+  telegram_message_received: {
+    label: 'Telegram Message',
+    pillClass: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  },
+  telegram_keyword_match: {
+    label: 'Telegram Keyword Match',
+    pillClass: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
