@@ -191,6 +191,8 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: stri
   { value: "conversation_assigned", label: "Conversation Assigned", hint: "When assigned to an agent" },
   { value: "tag_added", label: "Tag Added", hint: "When a tag is added to a contact" },
   { value: "time_based", label: "Time-Based", hint: "On a recurring schedule" },
+  { value: "telegram_message_received", label: "Telegram Message Received", hint: "Any incoming Telegram message" },
+  { value: "telegram_keyword_match", label: "Telegram Keyword Match", hint: "Telegram message contains specific keyword(s)" },
 ]
 
 function cid(): string {
@@ -600,7 +602,7 @@ function TriggerCard({
                 {TRIGGER_OPTIONS.find((o) => o.value === type)?.hint}
               </p>
             </div>
-            {type === "keyword_match" && (
+            {(type === "keyword_match" || type === "telegram_keyword_match") && (
               <KeywordMatchConfig
                 config={config as unknown as KeywordMatchTriggerConfig}
                 onChange={onConfigChange}

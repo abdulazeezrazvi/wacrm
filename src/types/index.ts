@@ -232,7 +232,9 @@ export type AutomationTriggerType =
   | 'new_contact_created'
   | 'conversation_assigned'
   | 'tag_added'
-  | 'time_based';
+  | 'time_based'
+  | 'telegram_message_received'
+  | 'telegram_keyword_match';
 
 export type AutomationStepType =
   | 'send_message'
