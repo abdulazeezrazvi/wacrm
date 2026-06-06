@@ -70,6 +70,60 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error('contact not found for this user')
   }
 
+  if (contact.phone.startsWith('telegram:')) {
+    const chatId = contact.phone.split(':')[1]
+    const botToken = process.env.TELEGRAM_BOT_TOKEN
+    if (!botToken) {
+      throw new Error('Telegram Bot Token not configured in server environment variables (TELEGRAM_BOT_TOKEN)')
+    }
+
+    const textToSend = input.kind === 'text' 
+      ? input.text 
+      : `[Template: ${input.templateName}]`
+
+    const telRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: textToSend,
+      }),
+    })
+
+    if (!telRes.ok) {
+      const errText = await telRes.text().catch(() => '')
+      throw new Error(`Telegram API error ${telRes.status}: ${errText.slice(0, 200)}`)
+    }
+
+    const tgData = (await telRes.json()) as any
+    const tgMessageId = tgData.result?.message_id ? String(tgData.result.message_id) : `tg_out_${Date.now()}`
+
+    // Persist the sent message in DB
+    const { error: msgErr } = await db.from('messages').insert({
+      conversation_id: input.conversationId,
+      sender_type: 'bot',
+      content_type: 'text',
+      content_text: textToSend,
+      message_id: tgMessageId,
+      status: 'sent',
+    })
+
+    if (msgErr) {
+      throw new Error(`sent to Telegram but DB insert failed: ${msgErr.message}`)
+    }
+
+    await db
+      .from('conversations')
+      .update({
+        last_message_text: textToSend,
+        last_message_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.conversationId)
+
+    return { whatsapp_message_id: tgMessageId }
+  }
+
   const sanitized = sanitizePhoneForMeta(contact.phone)
   if (!isValidE164(sanitized)) {
     throw new Error(`contact phone invalid: ${contact.phone}`)
