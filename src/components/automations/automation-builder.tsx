@@ -356,6 +356,56 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
     }
   }
 
+  function exportWorkflow() {
+    const dataToExport = {
+      name: state.name,
+      description: state.description,
+      trigger_type: state.trigger_type,
+      trigger_config: state.trigger_config,
+      is_active: state.is_active,
+      steps: state.steps,
+    }
+    navigator.clipboard.writeText(JSON.stringify(dataToExport, null, 2))
+    toast.success("Workflow JSON copied to clipboard!")
+  }
+
+  function importWorkflow() {
+    const jsonStr = prompt("Paste your workflow JSON code here:")
+    if (!jsonStr) return
+    try {
+      const parsed = JSON.parse(jsonStr)
+      if (!parsed.trigger_type || !Array.isArray(parsed.steps)) {
+        throw new Error("Missing trigger_type or steps array")
+      }
+      const restoreCids = (stepList: any[]): BuilderStep[] => {
+        return stepList.map((s) => ({
+          cid: s.cid || Math.random().toString(36).substring(2, 9),
+          step_type: s.step_type,
+          step_config: s.step_config || {},
+          branches: s.branches
+            ? {
+                yes: restoreCids(s.branches.yes || []),
+                no: restoreCids(s.branches.no || []),
+              }
+            : undefined,
+        }))
+      }
+
+      setState((s) => ({
+        ...s,
+        name: parsed.name || s.name || "Imported Automation",
+        description: parsed.description || s.description || "",
+        trigger_type: parsed.trigger_type,
+        trigger_config: parsed.trigger_config || {},
+        is_active: !!parsed.is_active,
+        steps: restoreCids(parsed.steps),
+      }))
+      toast.success("Workflow imported successfully!")
+    } catch (err: any) {
+      toast.error("Invalid workflow JSON: " + err.message)
+    }
+  }
+
   return (
     <div className="fixed inset-0 flex flex-col bg-slate-950">
       {/* Top bar. At sub-sm widths the "Active" label is hidden and the
@@ -397,6 +447,29 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         >
           <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />
           <span className="hidden md:inline">{panelOpen ? "Hide Panel" : "Show Panel"}</span>
+        </Button>
+
+        {/* Import/Export buttons */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={importWorkflow}
+          className="h-8 border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+          title="Import Workflow JSON"
+        >
+          <ArrowDown className="mr-1 h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Import</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportWorkflow}
+          className="h-8 border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white"
+          title="Export Workflow JSON"
+        >
+          <ArrowUp className="mr-1 h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Export</span>
         </Button>
 
         <Button
