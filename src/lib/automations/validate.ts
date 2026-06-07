@@ -135,6 +135,51 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
     case 'close_conversation':
       // No config required.
       break
+    case 'ai_chatbot':
+      if (!nonEmpty(c.system_prompt)) {
+        issues.push({ path: `${path}.system_prompt`, message: 'system prompt is required' })
+      }
+      break
+    case 'google_sheets':
+      if (!nonEmpty(c.spreadsheet_id)) {
+        issues.push({ path: `${path}.spreadsheet_id`, message: 'spreadsheet URL or ID is required' })
+      }
+      if (!nonEmpty(c.api_key)) {
+        issues.push({ path: `${path}.api_key`, message: 'API key is required' })
+      }
+      break
+    case 'google_calendar':
+      if (!nonEmpty(c.api_key)) {
+        issues.push({ path: `${path}.api_key`, message: 'API key is required' })
+      }
+      if (!nonEmpty(c.summary)) {
+        issues.push({ path: `${path}.summary`, message: 'event title is required' })
+      }
+      break
+    case 'notion':
+      if (!nonEmpty(c.database_id)) {
+        issues.push({ path: `${path}.database_id`, message: 'database ID is required' })
+      }
+      if (!nonEmpty(c.api_key)) {
+        issues.push({ path: `${path}.api_key`, message: 'integration token is required' })
+      }
+      break
+    case 'send_email':
+      if (!nonEmpty(c.to)) {
+        issues.push({ path: `${path}.to`, message: 'recipient email is required' })
+      }
+      if (!nonEmpty(c.subject)) {
+        issues.push({ path: `${path}.subject`, message: 'subject is required' })
+      }
+      break
+    case 'send_admin_alert':
+      if (!nonEmpty(c.admin_phone)) {
+        issues.push({ path: `${path}.admin_phone`, message: 'admin phone is required' })
+      }
+      if (!nonEmpty(c.alert_message)) {
+        issues.push({ path: `${path}.alert_message`, message: 'alert message is required' })
+      }
+      break
     default:
       issues.push({ path, message: `unknown step type: ${step.step_type}` })
   }
@@ -147,7 +192,7 @@ export function validateTriggerForActivation(
   const issues: ValidationIssue[] = []
   const cfg = (triggerConfig ?? {}) as Record<string, unknown>
 
-  if (triggerType === 'keyword_match') {
+  if (triggerType === 'keyword_match' || triggerType === 'telegram_keyword_match') {
     const k = cfg.keywords
     if (!Array.isArray(k) || k.length === 0) {
       issues.push({ path: 'trigger.keywords', message: 'at least one keyword is required' })
