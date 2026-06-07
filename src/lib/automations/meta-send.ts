@@ -24,6 +24,7 @@ interface SendTextArgs {
   conversationId: string
   contactId: string
   text: string
+  botToken?: string
 }
 
 interface SendTemplateArgs {
@@ -33,6 +34,7 @@ interface SendTemplateArgs {
   templateName: string
   language?: string
   params?: string[]
+  botToken?: string
 }
 
 export async function engineSendText(args: SendTextArgs): Promise<{ whatsapp_message_id: string }> {
@@ -72,9 +74,9 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
 
   if (contact.phone.startsWith('telegram:')) {
     const chatId = contact.phone.split(':')[1]
-    const botToken = process.env.TELEGRAM_BOT_TOKEN
+    const botToken = input.botToken || process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
-      throw new Error('Telegram Bot Token not configured in server environment variables (TELEGRAM_BOT_TOKEN)')
+      throw new Error('Telegram Bot Token not configured. Please enter the token in the Telegram trigger configuration in your builder.')
     }
 
     const textToSend = input.kind === 'text' 

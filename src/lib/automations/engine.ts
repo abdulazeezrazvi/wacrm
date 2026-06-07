@@ -328,11 +328,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const text = interpolate(cfg.text, args)
       if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
+      const botToken = (args.automation.trigger_config as any)?.bot_token
       const { whatsapp_message_id } = await engineSendText({
         userId: args.automation.user_id,
         conversationId,
         contactId: args.contactId,
         text,
+        botToken,
       })
       return `sent via Meta (${whatsapp_message_id})`
     }
@@ -360,6 +362,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             })
             .map((k) => String(cfg.variables![k]))
         : []
+      const botToken = (args.automation.trigger_config as any)?.bot_token
       const { whatsapp_message_id } = await engineSendTemplate({
         userId: args.automation.user_id,
         conversationId,
@@ -367,6 +370,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         templateName: cfg.template_name,
         language: cfg.language,
         params,
+        botToken,
       })
       return `template sent via Meta (${whatsapp_message_id})`
     }
@@ -512,11 +516,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
       // Send the AI-generated reply via WhatsApp
       const conversationId = await resolveConversationId(args)
+      const botToken = (args.automation.trigger_config as any)?.bot_token
       const { whatsapp_message_id } = await engineSendText({
         userId: args.automation.user_id,
         conversationId,
         contactId: args.contactId,
         text: replyText,
+        botToken,
       })
       return `ai_chatbot reply sent (${whatsapp_message_id})`
     }
@@ -659,11 +665,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         adminConvId = newConv?.id as string | null
       }
       if (!adminConvId) throw new Error('could not resolve admin conversation')
+      const botToken = (args.automation.trigger_config as any)?.bot_token
       const { whatsapp_message_id } = await engineSendText({
         userId: args.automation.user_id,
         conversationId: adminConvId,
         contactId: adminContactId,
         text: alertText,
+        botToken,
       })
       return `admin alert sent to ${cfg.admin_phone} (${whatsapp_message_id})`
     }

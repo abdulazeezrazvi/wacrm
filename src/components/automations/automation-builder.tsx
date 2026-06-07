@@ -608,6 +608,34 @@ function TriggerCard({
                 onChange={onConfigChange}
               />
             )}
+            {(type === "telegram_message_received" || type === "telegram_keyword_match") && (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-slate-400">
+                  Telegram Bot Token
+                </label>
+                <Input
+                  type="password"
+                  placeholder="Paste HTTP API Token here"
+                  value={(config.bot_token as string) ?? ""}
+                  onChange={(e) =>
+                    onConfigChange({ ...config, bot_token: e.target.value })
+                  }
+                  className="bg-slate-800 text-white font-mono"
+                />
+                <p className="text-[11px] leading-normal text-slate-500">
+                  Search for{" "}
+                  <a
+                    href="https://t.me/BotFather"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-violet-400 hover:underline"
+                  >
+                    @BotFather
+                  </a>{" "}
+                  on Telegram, send the <code>/newbot</code> command, follow the steps, and copy the HTTP API Token it provides.
+                </p>
+              </div>
+            )}
             {type === "tag_added" && (
               <Input
                 placeholder="Tag id"
